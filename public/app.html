@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Поштові індекси України</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f6fa;
+      color: #222;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.4rem; margin-bottom: 20px; }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+
+    label { display: block; font-size: .8rem; color: #666; margin-bottom: 4px; }
+
+    input[type=text] {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: .9rem;
+      width: 220px;
+      outline: none;
+    }
+    input[type=text]:focus { border-color: #5b8cf7; }
+    input.is-invalid { border-color: #e74c3c; }
+
+    button {
+      padding: 7px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+
+    .btn-primary  { background: #5b8cf7; color: #fff; }
+    .btn-primary:hover  { background: #4478e6; }
+    .btn-secondary { background: #e8eaf0; color: #444; }
+    .btn-secondary:hover { background: #d8dae4; }
+    .btn-danger   { background: #ff5c5c; color: #fff; font-size: .8rem; padding: 4px 10px; }
+    .btn-danger:hover   { background: #e04444; }
+    .btn-success  { background: #3cb97a; color: #fff; }
+    .btn-success:hover  { background: #2ea568; }
+
+    button:disabled { opacity: .5; cursor: default; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    thead th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 2px solid #eee;
+      color: #555;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tbody tr:hover { background: #f9fafc; }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: .75rem;
+      font-weight: 500;
+    }
+    .badge-api     { background: #e8f0fe; color: #3a6fd8; }
+    .badge-archive { background: #e9f7ef; color: #27774e; }
+
+    .pagination { display: flex; gap: 8px; align-items: center; margin-top: 16px; font-size: .875rem; }
+    .page-info { color: #666; }
+
+    .field-error { color: #e74c3c; font-size: .78rem; margin-top: 3px; }
+    .error       { color: #c0392b; font-size: .875rem; margin-top: 8px; }
+    .empty       { color: #999; text-align: center; padding: 32px 0; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+    .form-field input { width: 100%; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #ccc;
+      border-top-color: #5b8cf7;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Поштові індекси України</h1>
+
+    <!-- Search -->
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Поштовий індекс</label>
+          <input
+            type="text" maxlength="5"
+            v-model="searchPostCode"
+            :class="{ 'is-invalid': searchPostCodeError }"
+            placeholder="наприклад 01001"
+            @input="searchAddress = ''; searchPostCodeError = ''"
+            @keyup.enter="doSearch"
+          />
+          <div class="field-error" v-if="searchPostCodeError">{{ searchPostCodeError }}</div>
+        </div>
+        <div>
+          <label>Адреса або частина адреси</label>
+          <input
+            type="text"
+            v-model="searchAddress"
+            placeholder="наприклад Вінницька"
+            @input="searchPostCode = ''; searchPostCodeError = ''"
+            @keyup.enter="doSearch"
+          />
+        </div>
+        <button class="btn-primary" @click="doSearch" :disabled="loading">Знайти</button>
+        <button class="btn-secondary" @click="clearSearch" :disabled="loading">Скинути</button>
+        <button class="btn-success" @click="toggleForm" style="margin-left:auto">
+          {{ showForm ? 'Скасувати' : '+ Додати' }}
+        </button>
+      </div>
+
+      <!-- Add form -->
+      <div v-if="showForm">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Індекс *</label>
+            <input
+              type="text" maxlength="5"
+              v-model="form.post_code"
+              :class="{ 'is-invalid': formErrors.post_code }"
+              placeholder="01001"
+              @input="formErrors.post_code = ''"
+            />
+            <div class="field-error" v-if="formErrors.post_code">{{ formErrors.post_code }}</div>
+          </div>
+          <div class="form-field">
+            <label>Область</label>
+            <input
+              type="text"
+              v-model="form.region"
+              :class="{ 'is-invalid': formErrors.region }"
+              placeholder="Київська"
+              @input="formErrors.region = ''"
+            />
+            <div class="field-error" v-if="formErrors.region">{{ formErrors.region }}</div>
+          </div>
+          <div class="form-field">
+            <label>Район</label>
+            <input
+              type="text"
+              v-model="form.district"
+              :class="{ 'is-invalid': formErrors.district }"
+              placeholder="Бориспільський"
+              @input="formErrors.district = ''"
+            />
+            <div class="field-error" v-if="formErrors.district">{{ formErrors.district }}</div>
+          </div>
+          <div class="form-field">
+            <label>Населений пункт</label>
+            <input
+              type="text"
+              v-model="form.locality"
+              :class="{ 'is-invalid': formErrors.locality }"
+              placeholder="м. Бориспіль"
+              @input="formErrors.locality = ''"
+            />
+            <div class="field-error" v-if="formErrors.locality">{{ formErrors.locality }}</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn-success" @click="addItem" :disabled="loading">Зберегти</button>
+          <span class="error" v-if="formErrors.general">{{ formErrors.general }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card">
+      <div v-if="loading" style="padding: 24px 0; text-align:center">
+        <span class="spinner"></span> Завантаження...
+      </div>
+
+      <div v-else-if="error" class="error" style="padding:16px">{{ error }}</div>
+
+      <template v-else>
+        <table v-if="items.length">
+          <thead>
+            <tr>
+              <th>Індекс</th>
+              <th>Область</th>
+              <th>Район</th>
+              <th>Населений пункт</th>
+              <th>Джерело</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in items" :key="item.post_code">
+              <td><strong>{{ item.post_code }}</strong></td>
+              <td>{{ item.region   ?? '—' }}</td>
+              <td>{{ item.district ?? '—' }}</td>
+              <td>{{ item.locality ?? '—' }}</td>
+              <td>
+                <span class="badge" :class="item.source === 'api' ? 'badge-api' : 'badge-archive'">
+                  {{ item.source }}
+                </span>
+              </td>
+              <td>
+                <button class="btn-danger" @click="deleteItem(item.post_code)">Видалити</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="empty" v-else>Нічого не знайдено</div>
+
+        <div class="pagination" v-if="!searchPostCode && !searchAddress">
+          <button class="btn-secondary" @click="prevPage" :disabled="page === 1">← Назад</button>
+          <span class="page-info">Сторінка {{ page }}</span>
+          <button class="btn-secondary" @click="nextPage" :disabled="!hasMore">Вперед →</button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+
+    const POST_CODE_RE = /^\d{5}$/;
+    const MAX_FIELD_LEN = 255;
+
+    const API = '';  // same origin — change to 'http://localhost:8080' if opened as a file
+
+    createApp({
+      setup() {
+        const items   = ref([]);
+        const loading = ref(false);
+        const error   = ref('');
+        const page    = ref(1);
+        const hasMore = ref(false);
+
+        const searchPostCode      = ref('');
+        const searchAddress       = ref('');
+        const searchPostCodeError = ref('');
+
+        const showForm   = ref(false);
+        const form       = ref({ post_code: '', region: '', district: '', locality: '' });
+        const formErrors = ref({ post_code: '', region: '', district: '', locality: '', general: '' });
+
+        // --- validation helpers ---
+
+        function validatePostCode(value) {
+          if (!value.trim()) return 'Індекс обовʼязковий.';
+          if (!POST_CODE_RE.test(value.trim())) return 'Індекс повинен містити рівно 5 цифр.';
+          return '';
+        }
+
+        function validateOptionalField(value, name) {
+          if (value && value.length > MAX_FIELD_LEN) return `${name} не може перевищувати 255 символів.`;
+          return '';
+        }
+
+        function validateForm() {
+          formErrors.value = {
+            post_code: validatePostCode(form.value.post_code),
+            region:    validateOptionalField(form.value.region,   'Область'),
+            district:  validateOptionalField(form.value.district, 'Район'),
+            locality:  validateOptionalField(form.value.locality, 'Населений пункт'),
+            general:   '',
+          };
+          return Object.values(formErrors.value).every(e => e === '');
+        }
+
+        // --- fetch ---
+
+        async function fetchItems() {
+          loading.value = true;
+          error.value   = '';
+
+          const params = new URLSearchParams();
+
+          if (searchPostCode.value.trim()) {
+            params.set('post_code', searchPostCode.value.trim());
+          } else if (searchAddress.value.trim()) {
+            params.set('address', searchAddress.value.trim());
+          } else {
+            params.set('page', page.value);
+          }
+
+          try {
+            const res  = await fetch(`${API}/post-indexes?${params}`);
+            const json = await res.json();
+            items.value   = json.data ?? [];
+            hasMore.value = json.meta
+              ? json.meta.page * json.meta.per_page < json.meta.total
+              : false;
+          } catch {
+            error.value = 'Помилка зʼєднання з API';
+          } finally {
+            loading.value = false;
+          }
+        }
+
+        // --- search ---
+
+        function doSearch() {
+          if (searchPostCode.value.trim()) {
+            const err = validatePostCode(searchPostCode.value);
+            if (err) { searchPostCodeError.value = err; return; }
+          }
+          page.value = 1;
+          fetchItems();
+        }
+
+        function clearSearch() {
+          searchPostCode.value      = '';
+          searchAddress.value       = '';
+          searchPostCodeError.value = '';
+          page.value = 1;
+          fetchItems();
+        }
+
+        function prevPage() { if (page.value > 1) { page.value--; fetchItems(); } }
+        function nextPage() { page.value++; fetchItems(); }
+
+        // --- add ---
+
+        function toggleForm() {
+          showForm.value = !showForm.value;
+          form.value     = { post_code: '', region: '', district: '', locality: '' };
+          formErrors.value = { post_code: '', region: '', district: '', locality: '', general: '' };
+        }
+
+        async function addItem() {
+          if (!validateForm()) return;
+
+          const payload = {
+            post_code: form.value.post_code.trim(),
+            region:    form.value.region.trim()    || null,
+            district:  form.value.district.trim()  || null,
+            locality:  form.value.locality.trim()  || null,
+          };
+
+          try {
+            const res  = await fetch(`${API}/post-indexes`, {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify(payload),
+            });
+            const json = await res.json();
+
+            if (!res.ok) {
+              formErrors.value.general = json.error ?? 'Помилка збереження';
+              return;
+            }
+
+            toggleForm();
+            fetchItems();
+          } catch {
+            formErrors.value.general = 'Помилка зʼєднання з API';
+          }
+        }
+
+        // --- delete ---
+
+        async function deleteItem(postCode) {
+          if (!confirm(`Видалити індекс ${postCode}?`)) return;
+
+          try {
+            const res = await fetch(`${API}/post-indexes`, {
+              method:  'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ post_code: postCode }),
+            });
+
+            if (res.ok) fetchItems();
+          } catch {
+            error.value = 'Помилка видалення';
+          }
+        }
+
+        onMounted(fetchItems);
+
+        return {
+          items, loading, error, page, hasMore,
+          searchPostCode, searchAddress, searchPostCodeError,
+          showForm, form, formErrors,
+          doSearch, clearSearch, prevPage, nextPage,
+          toggleForm, addItem, deleteItem,
+        };
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>

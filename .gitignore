@@ -1,0 +1,8 @@
+/vendor
+.env
+.idea
+node_modules
+
+# Import working directory — keep the folder itself via .gitkeep
+/storage/imports/*
+!/storage/imports/.gitkeep

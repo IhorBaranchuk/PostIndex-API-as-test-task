@@ -1,0 +1,286 @@
+openapi: 3.0.0
+
+info:
+  title: Post Index API
+  version: 1.0.0
+  description: API for importing, searching, creating and deleting Ukrainian post indexes.
+
+servers:
+  - url: http://localhost:8080
+    description: Local API server
+
+paths:
+  /ping:
+    get:
+      summary: Ping API
+      responses:
+        '200':
+          description: API is alive
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: pong
+
+  /post-indexes:
+    get:
+      summary: Get post indexes
+      description: |
+        Returns post indexes from database.
+
+        Behavior:
+        - without filters: returns 50 records per page, sorted by post_code ascending
+        - with post_code: returns found record by post code
+        - with address: returns up to 50 records sorted by address ascending
+
+      parameters:
+        - in: query
+          name: page
+          required: false
+          description: Page number for pagination. Works with no filters and with the address filter.
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+
+        - in: query
+          name: post_code
+          required: false
+          description: Search by post office post code.
+          schema:
+            type: string
+          example: "22000"
+
+        - in: query
+          name: address
+          required: false
+          description: Search by address or part of address.
+          schema:
+            type: string
+          example: "Вінницька, Хмільницький, с. Вербівка"
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostIndexListResponse'
+
+    post:
+      summary: Create or update post indexes
+      description: |
+        Creates or updates one or more post indexes.
+
+        This endpoint accepts either a single object or an array of objects.
+        Records created through API are marked with source = api.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/PostIndexCreateRequest'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/PostIndexCreateRequest'
+
+            examples:
+              single:
+                summary: Single post index
+                value:
+                  post_code: "22000"
+                  region: "Вінницька"
+                  district: "Хмільницький"
+                  locality: "с. Вербівка"
+
+              multiple:
+                summary: Multiple post indexes
+                value:
+                  - post_code: "22000"
+                    region: "Вінницька"
+                    district: "Хмільницький"
+                    locality: "с. Вербівка"
+                  - post_code: "22003"
+                    region: "Вінницька"
+                    district: "Хмільницький"
+                    locality: "м. Хмільник"
+
+      responses:
+        '201':
+          description: Post indexes saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutationResponse'
+
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete post indexes
+      description: |
+        Deletes one or more post indexes.
+
+        Accepts either:
+        - post_code for single deletion
+        - post_codes array for multiple deletion
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/PostIndexDeleteOneRequest'
+                - $ref: '#/components/schemas/PostIndexDeleteManyRequest'
+
+            examples:
+              single:
+                summary: Delete one post index
+                value:
+                  post_code: "22000"
+
+              multiple:
+                summary: Delete multiple post indexes
+                value:
+                  post_codes:
+                    - "22000"
+                    - "22003"
+
+      responses:
+        '200':
+          description: Post indexes deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MutationResponse'
+
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PostIndex:
+      type: object
+      properties:
+        post_code:
+          type: string
+          example: "22000"
+        region:
+          type: string
+          nullable: true
+          example: "Вінницька"
+        district:
+          type: string
+          nullable: true
+          example: "Хмільницький"
+        locality:
+          type: string
+          nullable: true
+          example: "с. Вербівка"
+        address:
+          type: string
+          nullable: true
+          example: "Вінницька, Хмільницький, с. Вербівка"
+        source:
+          type: string
+          enum: [archive, api]
+          example: api
+        created_at:
+          type: string
+          example: "2026-05-07 15:45:21"
+        updated_at:
+          type: string
+          example: "2026-05-07 15:45:21"
+
+    PostIndexCreateRequest:
+      type: object
+      required:
+        - post_code
+      properties:
+        post_code:
+          type: string
+          description: Unique post office post code.
+          example: "22000"
+        region:
+          type: string
+          nullable: true
+          example: "Вінницька"
+        district:
+          type: string
+          nullable: true
+          example: "Хмільницький"
+        locality:
+          type: string
+          nullable: true
+          example: "с. Вербівка"
+
+    PostIndexDeleteOneRequest:
+      type: object
+      required:
+        - post_code
+      properties:
+        post_code:
+          type: string
+          example: "22000"
+
+    PostIndexDeleteManyRequest:
+      type: object
+      required:
+        - post_codes
+      properties:
+        post_codes:
+          type: array
+          items:
+            type: string
+          example:
+            - "22000"
+            - "22003"
+
+    PostIndexListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostIndex'
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 27845
+            page:
+              type: integer
+              example: 1
+            per_page:
+              type: integer
+              example: 50
+
+    MutationResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Post indexes saved successfully.
+        count:
+          type: integer
+          example: 1
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: post_code is required.
